@@ -17,13 +17,14 @@ function updateAVDefinitonsWithFreshclam() {
         let executionResult = execSync(`${constants.PATH_TO_FRESHCLAM} --config-file=${constants.FRESHCLAM_CONFIG} --datadir=${constants.FRESHCLAM_WORK_DIR}`);
         
         utils.generateSystemMessage('Update message');
-        console.log(executionResult.toString());
+        if (executionResult !== null) {
+            console.log(executionResult.toString());
 
-        if(executionResult.stderr) {
-            utils.generateSystemMessage('stderr');
-            console.log(executionResult.stderr.toString());
+            if(executionResult.stderr) {
+                utils.generateSystemMessage('stderr');
+                console.log(executionResult.stderr.toString());
+            }    
         }
-
         return true;
     } catch (err) {
         console.log(err);
@@ -75,6 +76,38 @@ async function uploadAVDefinitions() {
     const uploadPromises = constants.CLAMAV_DEFINITIONS_FILES.map((filenameToUpload) => {
         return new Promise((resolve, reject) => {
             utils.generateSystemMessage(`Uploading updated definitions for file ${filenameToUpload} ---`);
+            fs.readFile(path.join('/tmp/', filenameToUpload), (err, data) => {
+                if (err) {
+                    utils.generateSystemMessage(`--- Error reading ${filenameToUpload} ---`);
+                    console.log(err);
+                    reject();
+                    return;
+                }
+                let params = {
+                    Bucket: constants.CLAMAV_BUCKET_NAME,
+                    Key: `${constants.PATH_TO_AV_DEFINITIONS}/${filenameToUpload}`,
+                    Body: data
+                };
+                S3.putObject(params, function(err, data) {
+                    if (err) {
+                        utils.generateSystemMessage(`--- Error uploading ${filenameToUpload} ---`);
+                        console.log(err);
+                        reject();
+                        return;
+                    }
+                    else {
+                      resolve();
+                      utils.generateSystemMessage(`--- Finished uploading ${filenameToUpload} ---`);
+                    }
+                  });        
+            });        
+        });
+    });
+
+
+   /* const uploadPromises = constants.CLAMAV_DEFINITIONS_FILES.map((filenameToUpload) => {
+        return new Promise((resolve, reject) => {
+            utils.generateSystemMessage(`Uploading updated definitions for file ${filenameToUpload} ---`);
 
             let options = {
                 Bucket: constants.CLAMAV_BUCKET_NAME,
@@ -94,9 +127,9 @@ async function uploadAVDefinitions() {
             });
 
         });
-    });
+    });*/
 
-    return await Promise.all(uploadPromises);
+    return Promise.all(uploadPromises);
 }
 
 /**
